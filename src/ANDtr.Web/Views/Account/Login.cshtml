@@ -4,10 +4,32 @@
 }
 
 <div class="auth-layout">
+    @* ---- Left: brand panel (hidden on small screens) ---- *@
+    <aside class="auth-aside">
+        <div class="auth-brand">
+            <span class="brand-mark">@Icons.Svg("shield", 18)</span>
+            <span><strong>ANDtr</strong><small>Recall Platform</small></span>
+        </div>
+
+        <div class="auth-pitch">
+            <h2>Medical device safety, reviewed together.</h2>
+            <p>Search recall notices, record risk findings and share them securely with your customers.</p>
+            <ul class="auth-points">
+                <li><span>@Icons.Svg("search-check", 18)</span> Search FDA safety and recall notices</li>
+                <li><span>@Icons.Svg("clipboard", 18)</span> Organise findings into risk reviews</li>
+                <li><span>@Icons.Svg("share", 18)</span> Share with each customer organisation</li>
+            </ul>
+        </div>
+
+        <p class="auth-note">© @DateTime.UtcNow.Year ANDtr · Access is limited to authorised users.</p>
+    </aside>
+
+    @* ---- Right: the login form ---- *@
     <section class="auth-main">
         <div class="auth-card">
-            <h1 class="auth-title">Log in</h1>
-            <p class="auth-subtitle">ANDtr Recall Platform</p>
+            <span class="brand-mark auth-card-mark">@Icons.Svg("shield", 22)</span>
+            <h1 class="auth-title">Welcome back</h1>
+            <p class="auth-subtitle">Log in to the ANDtr Recall Platform.</p>
 
             <form asp-action="Login" method="post" novalidate>
                 <input type="hidden" asp-for="ReturnUrl" />
@@ -18,26 +40,52 @@
                 @* Email is the username - it is unique for every user. *@
                 <div class="mb-3">
                     <label asp-for="Email" class="form-label"></label>
-                    <input asp-for="Email" class="form-control" autocomplete="username" autofocus />
+                    <div class="input-icon">
+                        @Icons.Svg("mail")
+                        <input asp-for="Email" class="form-control" placeholder="name@company.com" autocomplete="username" autofocus />
+                    </div>
                     <span asp-validation-for="Email"></span>
                 </div>
 
                 <div class="mb-3">
                     <label asp-for="Password" class="form-label"></label>
-                    <input asp-for="Password" class="form-control" autocomplete="current-password" />
+                    <div class="input-icon auth-password">
+                        @Icons.Svg("lock")
+                        <input asp-for="Password" class="form-control" placeholder="Enter your password" autocomplete="current-password" />
+                        <button type="button" class="auth-password-toggle" id="password-toggle" aria-label="Show password">Show</button>
+                    </div>
                     <span asp-validation-for="Password"></span>
                 </div>
 
-                <div class="form-check mb-4">
-                    <input asp-for="RememberMe" class="form-check-input" />
-                    <label asp-for="RememberMe" class="form-check-label"></label>
+                <div class="auth-row">
+                    <div class="form-check">
+                        <input asp-for="RememberMe" class="form-check-input" />
+                        <label asp-for="RememberMe" class="form-check-label"></label>
+                    </div>
+                    <span class="auth-hint">Forgot it? Ask your admin.</span>
                 </div>
 
-                <button type="submit" class="btn btn-primary w-100 py-2">Log in</button>
+                <button type="submit" class="btn btn-primary auth-submit">Log in</button>
             </form>
+
+            <p class="auth-footer">@Icons.Svg("lock", 13) Secure access for authorised users only</p>
         </div>
     </section>
 </div>
+
+<script>
+    // Show / hide the password.
+    (() => {
+        const input = document.getElementById('Password');
+        const toggle = document.getElementById('password-toggle');
+        toggle.addEventListener('click', () => {
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            toggle.textContent = show ? 'Hide' : 'Show';
+            toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        });
+    })();
+</script>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
