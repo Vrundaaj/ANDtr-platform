@@ -14,15 +14,22 @@
         <p class="page-subtitle">Create users, give them a role and deactivate accounts.</p>
     </div>
     <div class="page-actions">
+        @* Submits the filter form to Export, so the file matches what is typed and selected right now. *@
+        <button type="submit" form="user-filters" formaction="@Url.Action("Export")" class="btn btn-light"
+                title="Download the users matching the current filters as a CSV file (opens in Excel)">
+            @Icons.Svg("download") Export CSV
+        </button>
         <a class="btn btn-primary" asp-action="Create">@Icons.Svg("user-plus") New user</a>
     </div>
 </div>
 
 <partial name="_StatusMessage" />
 
+<partial name="_UsersOverview" model="Model" />
+
 <section class="panel">
     @* ---- Search and filters: the lists submit as soon as they change ---- *@
-    <form method="get" asp-action="Index" class="toolbar">
+    <form method="get" asp-action="Index" class="toolbar" id="user-filters">
         <input type="hidden" asp-for="OrganisationId" />
         <input type="hidden" asp-for="Sort" />
         <input type="hidden" asp-for="Desc" />
@@ -40,9 +47,11 @@
         </select>
         <select asp-for="Status" class="form-select" aria-label="Status" onchange="this.form.submit()">
             <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="deleted">Deleted</option>
+            <option value="@UserStatus.Active">Active</option>
+            <option value="@UserStatus.Dormant" title="Active, but no login in @UserStats.DormantDays days">No recent login</option>
+            <option value="@UserStatus.Inactive">Inactive</option>
+            <option value="@UserStatus.Locked">Locked out</option>
+            <option value="@UserStatus.Deleted">Deleted</option>
         </select>
         @if (Model.OrganisationName is not null)
         {
@@ -57,7 +66,7 @@
     @* ---- Users table and paging: replaced in place by the live search (site.js) ---- *@
     <div id="user-results">
     <div class="table-wrap">
-        <table class="table app-table">
+        <table class="table app-table is-stackable">
             <thead>
                 <tr>
                     <th>@SortHeader(UserSort.Name, "User", currentSort)</th>
@@ -88,8 +97,8 @@
                                 </span>
                             </div>
                         </td>
-                        <td><span class="pill pill-@(user.Role?.ToLowerInvariant() ?? "inactive")">@(user.Role ?? "None")</span></td>
-                        <td>
+                        <td data-label="Role"><span class="pill pill-@(user.Role?.ToLowerInvariant() ?? "inactive")">@(user.Role ?? "None")</span></td>
+                        <td data-label="Organisation">
                             @if (user.Organisation is null)
                             {
                                 <span class="text-dash">—</span>
@@ -99,11 +108,11 @@
                                 @user.Organisation
                             }
                         </td>
-                        <td><partial name="_StatusBadge" model="user" /></td>
-                        <td title="@(user.LastLoginAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Never logged in")">
+                        <td data-label="Status"><partial name="_StatusBadge" model="user" /></td>
+                        <td data-label="Last login" title="@(user.LastLoginAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Never logged in")">
                             @DisplayText.TimeAgo(user.LastLoginAt)
                         </td>
-                        <td>
+                        <td class="cell-actions">
                             <div class="row-actions">
                                 @if (user.IsDeleted)
                                 {
@@ -179,7 +188,6 @@
         }
     </div>
 
-    @* ---- Paging ---- *@
     <div class="panel-footer">
         <span>Showing @firstShown–@lastShown of @Model.TotalCount users</span>
         @if (Model.TotalPages > 1)

@@ -150,8 +150,6 @@ public sealed class OrganisationServiceTests : IAsyncLifetime
         Assert.Equal(orgA, await RunAsync(s => s.GetOrganisationIdAsync(PrincipalFor(customer))));
     }
 
-    // ---- Helpers ----
-
     private static OrganisationFormViewModel NewOrganisation(string name) => new()
     {
         Name = name,

@@ -17,7 +17,6 @@
 
 <partial name="_StatusMessage" />
 
-@* ---- Headline numbers ---- *@
 <div class="stat-grid is-three">
     <div class="panel stat-card">
         <span class="stat-icon tone-purple">@Icons.Svg("building", 20)</span>
@@ -41,6 +40,25 @@
         </div>
     </div>
 </div>
+
+@{
+    const int chartLimit = 10;
+    var chartOrganisations = Model.OrderByDescending(o => o.UserCount).ThenBy(o => o.Name).ToList();
+    var hiddenCount = Math.Max(0, chartOrganisations.Count - chartLimit);
+}
+<partial name="_BarChart" model="@(new BarChartViewModel
+{
+    Title = "Customers per organisation",
+    Subtitle = hiddenCount > 0
+        ? $"The {chartLimit} largest organisations ({hiddenCount} more in the table below). Click a bar to list its customers."
+        : "Click a bar to list its customers.",
+    Unit = ("customer", "customers"),
+    EmptyText = Model.Count == 0 ? "No organisations yet." : "No customers in any organisation yet.",
+    Items = chartOrganisations
+        .Take(chartLimit)
+        .Select(o => new BarChartItem(o.Name, o.UserCount, Url.Action("Index", "Users", new { organisationId = o.Id })))
+        .ToList(),
+})" />
 
 <section class="panel">
     <form method="get" asp-action="Index" class="toolbar">

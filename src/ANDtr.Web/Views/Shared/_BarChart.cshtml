@@ -1,0 +1,51 @@
+@model BarChartViewModel
+@using System.Globalization
+@{
+    void Row(BarChartItem item)
+    {
+        var width = item.Value == 0 ? 0 : Math.Max(1.5, item.Value * 100.0 / Model.Max);
+        <span class="bar-label">@item.Label</span>
+        <span class="bar-track"><span class="bar-fill" style="width:@width.ToString("0.##", CultureInfo.InvariantCulture)%"></span></span>
+        <span class="bar-value">@item.Value</span>
+    }
+}
+
+<section class="panel chart-panel">
+    <div class="chart-head">
+        <div>
+            <h2 class="chart-title">@Model.Title</h2>
+            @if (Model.Subtitle is not null)
+            {
+                <p class="chart-subtitle">@Model.Subtitle</p>
+            }
+        </div>
+        @if (Model.LinkUrl is not null)
+        {
+            <a class="chart-link" href="@Model.LinkUrl">@Model.LinkText @Icons.Svg("chevron-right", 14)</a>
+        }
+    </div>
+
+    @if (Model.Max == 0)
+    {
+        <p class="chart-empty">@Model.EmptyText</p>
+    }
+    else
+    {
+        <ul class="bar-chart" aria-label="@Model.Title">
+            @foreach (var item in Model.Items)
+            {
+                var tip = $"{item.Label}: {Model.Format(item.Value)}";
+                <li>
+                    @if (item.Url is not null)
+                    {
+                        <a class="bar-row" href="@item.Url" title="@tip. Click to see them." aria-label="@tip">@{ Row(item); }</a>
+                    }
+                    else
+                    {
+                        <div class="bar-row" title="@tip" aria-label="@tip">@{ Row(item); }</div>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</section>

@@ -1,6 +1,5 @@
 @model UserFormViewModel
 
-@* Shared by Create and Edit (A1, A2, A3). *@
 <form asp-action="@(Model.IsEdit ? "Edit" : "Create")" asp-route-id="@Model.Id" method="post" class="panel" novalidate>
     <div class="panel-body">
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>

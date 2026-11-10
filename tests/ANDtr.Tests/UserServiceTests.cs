@@ -216,8 +216,6 @@ public sealed class UserServiceTests : IAsyncLifetime
         Assert.True((await FindAsync("priya@andtr.com")).User!.IsActive);
     }
 
-    // ---- Delete and restore ----
-
     [Fact]
     public async Task DeleteAsync_UserWithReview_MovesToDeletedListAndKeepsReview()
     {
@@ -285,8 +283,6 @@ public sealed class UserServiceTests : IAsyncLifetime
         Assert.NotNull((await FindAsync("priya@andtr.com")).User);
     }
 
-    // ---- Users list ----
-
     [Fact]
     public async Task SearchAsync_WithRoleAndStatusFilters_ReturnsOnlyMatchingUsers()
     {
@@ -332,7 +328,93 @@ public sealed class UserServiceTests : IAsyncLifetime
         Assert.Equal(2, page.Users.Count);
     }
 
-    // ---- Unlock and login tracking ----
+    [Fact]
+    public async Task SearchAsync_LockedStatus_ReturnsOnlyLockedOutUsers()
+    {
+        await _host.AddUserAsync("rahul@andtr.com", Roles.Employee);
+        var locked = await _host.AddUserAsync("priya@andtr.com", Roles.Employee);
+        await _host.RunAsync(async sp =>
+        {
+            var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
+            return await userManager.SetLockoutEndDateAsync((await userManager.FindByIdAsync(locked.Id))!, DateTimeOffset.UtcNow.AddMinutes(5));
+        });
+
+        var page = await SearchAsync(new UserListViewModel { Status = UserStatus.Locked });
+
+        Assert.Equal("priya@andtr.com", Assert.Single(page.Users).Email);
+    }
+
+    [Fact]
+    public async Task SearchAsync_DormantStatus_ReturnsActiveUsersWithNoRecentLogin()
+    {
+        await _host.AddUserAsync("never@andtr.com", Roles.Employee);
+        await _host.AddUserAsync("recent@andtr.com", Roles.Employee);
+        var inactive = await _host.AddUserAsync("inactive@andtr.com", Roles.Employee);
+        await SetActiveAsync(inactive.Id, isActive: false);
+        await _host.RunAsync(async sp =>
+        {
+            await sp.GetRequiredService<UserService>().RecordLoginAsync("recent@andtr.com");
+            return true;
+        });
+
+        var page = await SearchAsync(new UserListViewModel { Status = UserStatus.Dormant });
+
+        Assert.Equal("never@andtr.com", Assert.Single(page.Users).Email);
+    }
+
+    [Fact]
+    public async Task ExportAsync_ReturnsEveryMatchingUserNotJustOnePage()
+    {
+        for (var i = 0; i < UserService.PageSize + 3; i++)
+        {
+            await _host.AddUserAsync($"user{i:00}@andtr.com", Roles.Employee);
+        }
+        await _host.AddUserAsync("boss@andtr.com", Roles.Admin);
+
+        var users = await _host.RunAsync(sp => sp.GetRequiredService<UserService>()
+            .ExportAsync(new UserListViewModel { Role = Roles.Employee }));
+
+        Assert.Equal(UserService.PageSize + 3, users.Count);
+        Assert.All(users, u => Assert.Equal(Roles.Employee, u.Role));
+    }
+
+    [Fact]
+    public async Task GetStatsAsync_CountsUsersByStateRoleAndOrganisation()
+    {
+        var bigOrg = await _host.AddOrganisationAsync("Big Org");
+        var smallOrg = await _host.AddOrganisationAsync("Small Org");
+        await _host.AddOrganisationAsync("Empty Org");
+        await _host.AddUserAsync("c1@andtr.com", Roles.Customer, bigOrg);
+        await _host.AddUserAsync("c2@andtr.com", Roles.Customer, bigOrg);
+        await _host.AddUserAsync("c3@andtr.com", Roles.Customer, smallOrg);
+        var inactive = await _host.AddUserAsync("jo@andtr.com", Roles.Employee);
+        var locked = await _host.AddUserAsync("priya@andtr.com", Roles.Admin);
+        var admin = await _host.AddUserAsync("boss@andtr.com", Roles.Admin);
+        var deleted = await _host.AddUserAsync("gone@andtr.com", Roles.Employee, null);
+        await SetActiveAsync(inactive.Id, isActive: false);
+        await DeleteAsync(deleted.Id, currentUserId: admin.Id);
+        await _host.RunAsync(async sp =>
+        {
+            var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
+            return await userManager.SetLockoutEndDateAsync((await userManager.FindByIdAsync(locked.Id))!, DateTimeOffset.UtcNow.AddMinutes(5));
+        });
+        await _host.RunAsync(async sp =>
+        {
+            await sp.GetRequiredService<UserService>().RecordLoginAsync("boss@andtr.com");
+            return true;
+        });
+
+        var stats = await _host.RunAsync(sp => sp.GetRequiredService<UserService>().GetStatsAsync());
+
+        Assert.Equal(6, stats.Total);
+        Assert.Equal(5, stats.Active);
+        Assert.Equal(1, stats.Inactive);
+        Assert.Equal(1, stats.Locked);
+        Assert.Equal(4, stats.Dormant);
+        Assert.Equal(new Dictionary<string, int> { [Roles.Employee] = 1, [Roles.Customer] = 3, [Roles.Admin] = 2 }, stats.ByRole);
+        Assert.Equal(["Big Org", "Small Org"], stats.TopOrganisations.Select(o => o.Name));
+        Assert.Equal([2, 1], stats.TopOrganisations.Select(o => o.Customers));
+    }
 
     [Fact]
     public async Task UnlockAsync_LockedOutUser_ClearsTheLockout()
@@ -367,8 +449,6 @@ public sealed class UserServiceTests : IAsyncLifetime
         Assert.NotNull(lastLogin);
         Assert.InRange(lastLogin.Value, before.AddSeconds(-1), DateTime.UtcNow.AddSeconds(1));
     }
-
-    // ---- Helpers ----
 
     private static UserFormViewModel NewUser(string email, string role) => new()
     {

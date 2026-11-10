@@ -26,7 +26,6 @@ public class UserListItem
     public bool IsDeleted => DeletedAt is not null;
 }
 
-// Users list page: the current filters and sort plus one page of results (A1, A3).
 public class UserListViewModel
 {
     public string? Search { get; set; }
@@ -38,20 +37,39 @@ public class UserListViewModel
     // Shows only deleted users; otherwise deleted users are hidden.
     public bool Deleted { get; set; }
 
-    // The Status dropdown ("active", "inactive" or "deleted"), mapped onto IsActive and Deleted.
+    // Shows only users locked out by Identity after too many wrong passwords.
+    public bool Locked { get; set; }
+
+    // Shows only active users with no login in UserStats.DormantDays days.
+    public bool Dormant { get; set; }
+
+    // The Status dropdown, mapped onto IsActive, Deleted, Locked and Dormant.
     public string? Status
     {
-        get => Deleted ? "deleted" : IsActive switch { true => "active", false => "inactive", null => null };
+        get => Deleted ? UserStatus.Deleted
+            : Locked ? UserStatus.Locked
+            : Dormant ? UserStatus.Dormant
+            : IsActive switch { true => UserStatus.Active, false => UserStatus.Inactive, null => null };
         set
         {
-            Deleted = value == "deleted";
-            IsActive = value switch { "active" => true, "inactive" => false, _ => null };
+            Deleted = value == UserStatus.Deleted;
+            Locked = value == UserStatus.Locked;
+            Dormant = value == UserStatus.Dormant;
+            IsActive = value switch
+            {
+                UserStatus.Active or UserStatus.Dormant => true,
+                UserStatus.Inactive => false,
+                _ => null,
+            };
         }
     }
 
     public int? OrganisationId { get; set; }
 
     public string? OrganisationName { get; set; }
+
+    // Headline numbers and charts at the top of the page. Ignores the filters above.
+    public UserStats Stats { get; set; } = new();
 
     // Column key from UserSort; empty means name.
     public string? Sort { get; set; }
@@ -67,6 +85,15 @@ public class UserListViewModel
     public int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
 
     public List<UserListItem> Users { get; set; } = [];
+}
+
+public static class UserStatus
+{
+    public const string Active = "active";
+    public const string Dormant = "dormant";
+    public const string Inactive = "inactive";
+    public const string Locked = "locked";
+    public const string Deleted = "deleted";
 }
 
 public static class UserSort

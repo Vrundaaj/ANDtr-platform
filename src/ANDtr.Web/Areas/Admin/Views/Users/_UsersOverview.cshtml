@@ -1,0 +1,143 @@
+@model UserListViewModel
+@using System.Globalization
+@{
+    var stats = Model.Stats;
+    var status = Model.Status;
+    var noFilters = string.IsNullOrEmpty(status) && string.IsNullOrEmpty(Model.Role)
+        && string.IsNullOrWhiteSpace(Model.Search) && Model.OrganisationId is null;
+
+    // Fixed colour per role, checked for colour-blind readers (dataviz palette validator).
+    var roleColours = new Dictionary<string, string>
+    {
+        [Roles.Admin] = "#a83a78",
+        [Roles.Employee] = "#5b62e0",
+        [Roles.Customer] = "#1c9aa0",
+    };
+    var roleOrder = new[] { Roles.Admin, Roles.Employee, Roles.Customer };
+    var roleTotal = stats.ByRole.Values.Sum();
+
+    const double radius = 52;
+    var circumference = 2 * Math.PI * radius;
+    var shownRoles = roleOrder.Count(r => stats.ByRole.GetValueOrDefault(r) > 0);
+    var gap = shownRoles > 1 ? 3.0 : 0;
+    var offset = 0.0;
+
+    string Num(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+    string Percent(int value) => roleTotal == 0 ? "0%" : $"{Math.Round(value * 100.0 / roleTotal)}%";
+    string Users(int value) => value == 1 ? "1 user" : $"{value} users";
+}
+
+@* Each card filters the users list below; the selected one is highlighted. *@
+<div class="stat-grid">
+    <div class="panel stat-card is-link @(noFilters ? "is-selected" : "")">
+        <span class="stat-icon tone-purple">@Icons.Svg("users", 20)</span>
+        <div>
+            <a class="stat-link stat-label" asp-action="Index">Total users</a>
+            <div class="stat-value">@stats.Total</div>
+            <div class="stat-hint">Across all roles</div>
+        </div>
+    </div>
+    <div class="panel stat-card is-link @(status == UserStatus.Active || status == UserStatus.Dormant ? "is-selected" : "")">
+        <span class="stat-icon tone-green">@Icons.Svg("user-check", 20)</span>
+        <div>
+            <a class="stat-link stat-label" asp-action="Index" asp-route-status="@UserStatus.Active">Active</a>
+            <div class="stat-value">@stats.Active</div>
+            @if (stats.Dormant > 0)
+            {
+                <a class="stat-hint stat-hint-link" asp-action="Index" asp-route-status="@UserStatus.Dormant">@stats.Dormant with no login in @UserStats.DormantDays days</a>
+            }
+            else
+            {
+                <div class="stat-hint">Everyone logged in within @UserStats.DormantDays days</div>
+            }
+        </div>
+    </div>
+    <div class="panel stat-card is-link @(status == UserStatus.Inactive ? "is-selected" : "")">
+        <span class="stat-icon tone-grey">@Icons.Svg("user-x", 20)</span>
+        <div>
+            <a class="stat-link stat-label" asp-action="Index" asp-route-status="@UserStatus.Inactive">Inactive</a>
+            <div class="stat-value">@stats.Inactive</div>
+            <div class="stat-hint">Deactivated, data kept</div>
+        </div>
+    </div>
+    <div class="panel stat-card is-link @(status == UserStatus.Locked ? "is-selected" : "")">
+        <span class="stat-icon tone-amber">@Icons.Svg("lock", 20)</span>
+        <div>
+            <a class="stat-link stat-label" asp-action="Index" asp-route-status="@UserStatus.Locked">Locked out</a>
+            <div class="stat-value">@stats.Locked</div>
+            <div class="stat-hint">Too many wrong passwords</div>
+        </div>
+    </div>
+</div>
+
+<div class="chart-grid">
+    <section class="panel chart-panel">
+        <div class="chart-head">
+            <div>
+                <h2 class="chart-title">Users by role</h2>
+                <p class="chart-subtitle">Who can do what in the platform</p>
+            </div>
+        </div>
+
+        @if (roleTotal == 0)
+        {
+            <p class="chart-empty">No users yet.</p>
+        }
+        else
+        {
+            <div class="donut-chart">
+                <svg class="donut" viewBox="0 0 140 140" role="img" aria-label="Users by role: @string.Join(", ", roleOrder.Select(r => $"{r} {stats.ByRole.GetValueOrDefault(r)}"))">
+                    <circle class="donut-track" cx="70" cy="70" r="@Num(radius)" />
+                    @foreach (var role in roleOrder)
+                    {
+                        var count = stats.ByRole.GetValueOrDefault(role);
+                        if (count == 0)
+                        {
+                            continue;
+                        }
+
+                        var length = count * circumference / roleTotal;
+                        <a href="@Url.Action("Index", new { role })">
+                            <circle class="donut-segment" cx="70" cy="70" r="@Num(radius)" stroke="@roleColours[role]"
+                                    stroke-dasharray="@Num(Math.Max(length - gap, 0.5)) @Num(circumference)"
+                                    stroke-dashoffset="@Num(-offset)">
+                                <title>@role: @Users(count) (@Percent(count))</title>
+                            </circle>
+                        </a>
+                        offset += length;
+                    }
+                    <text class="donut-total" x="70" y="68" text-anchor="middle">@roleTotal</text>
+                    <text class="donut-caption" x="70" y="88" text-anchor="middle">@(roleTotal == 1 ? "user" : "users")</text>
+                </svg>
+
+                <ul class="donut-legend">
+                    @foreach (var role in roleOrder)
+                    {
+                        var count = stats.ByRole.GetValueOrDefault(role);
+                        <li>
+                            <a href="@Url.Action("Index", new { role })" title="@role: @Users(count). Click to see them.">
+                                <span class="legend-swatch" style="background:@roleColours[role]"></span>
+                                <span class="legend-label">@role</span>
+                                <span class="legend-value">@count</span>
+                                <span class="legend-percent">@Percent(count)</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </section>
+
+    <partial name="_BarChart" model="@(new BarChartViewModel
+    {
+        Title = "Customers per organisation",
+        Subtitle = "Organisations with the most customer users",
+        Unit = ("customer", "customers"),
+        EmptyText = "No customers in any organisation yet.",
+        LinkText = "View all",
+        LinkUrl = Url.Action("Index", "Organisations"),
+        Items = stats.TopOrganisations
+            .Select(o => new BarChartItem(o.Name, o.Customers, Url.Action("Index", new { organisationId = o.Id })))
+            .ToList(),
+    })" />
+</div>

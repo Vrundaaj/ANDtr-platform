@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ANDtr.Tests;
 
-// In-memory SQLite database with Identity and the Users & Access services, for service-level tests.
 public sealed class ServiceTestHost : IAsyncDisposable
 {
     public const string Password = "Test-Passw0rd!";

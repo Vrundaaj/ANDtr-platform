@@ -154,8 +154,6 @@ public sealed class AccountTests(WebAppFactory factory) : IClassFixture<WebAppFa
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
     }
 
-    // ---- Lockout and login tracking ----
-
     [Fact]
     public async Task Login_AfterFiveWrongPasswords_IsLockedUntilAdminUnlocks()
     {

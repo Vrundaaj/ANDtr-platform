@@ -15,8 +15,6 @@ public sealed class OrganisationService(
 {
     private const string SaveFailedMessage = "The changes could not be saved. Please try again.";
 
-    // ---- Organisations list ----
-
     public Task<List<OrganisationListItem>> ListAsync(string? search)
     {
         var query = db.CustomerOrganisations.AsNoTracking();
@@ -40,7 +38,6 @@ public sealed class OrganisationService(
             .ToListAsync();
     }
 
-    // Dropdown options for the user form.
     public Task<List<SelectListItem>> GetOptionsAsync() =>
         db.CustomerOrganisations.AsNoTracking()
             .OrderBy(o => o.Name)
@@ -58,8 +55,6 @@ public sealed class OrganisationService(
                 Notes = o.Notes,
             })
             .FirstOrDefaultAsync();
-
-    // ---- Create, edit and delete ----
 
     public async Task<ServiceResult> CreateAsync(OrganisationFormViewModel model)
     {
@@ -129,8 +124,6 @@ public sealed class OrganisationService(
         return await SaveAsync();
     }
 
-    // ---- Customer privacy (for the customer portal) ----
-
     // The signed-in customer's organisation, or null for staff and unknown users.
     public async Task<int?> GetOrganisationIdAsync(ClaimsPrincipal principal)
     {
@@ -156,8 +149,6 @@ public sealed class OrganisationService(
         var organisationId = await GetOrganisationIdAsync(principal);
         return organisationId is int id && await SharedWith(id).AnyAsync(r => r.Id == reviewId);
     }
-
-    // ---- Helpers ----
 
     private Task<bool> NameTakenAsync(string name, int? exceptId)
     {

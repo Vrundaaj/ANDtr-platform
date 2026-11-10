@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace ANDtr.Web.Models;
 
-// Create / edit user form (A1, A2, A3).
 public class UserFormViewModel
 {
     public string? Id { get; set; }

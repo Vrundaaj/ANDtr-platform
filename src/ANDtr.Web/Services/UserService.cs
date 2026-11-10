@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ANDtr.Web.Services;
 
-// Create, edit, list and deactivate user accounts (A1, A2, A3).
 public sealed class UserService(
     ApplicationDbContext db,
     UserManager<ApplicationUser> userManager,
@@ -17,8 +16,6 @@ public sealed class UserService(
     private const string SaveFailedMessage = "The changes could not be saved. Please try again.";
 
     private const string DeletedMessage = "This user has been deleted. Restore them from the Deleted list first.";
-
-    // ---- Users list ----
 
     // Fills in one page of users matching the filters and sort already set on the model.
     public async Task<UserListViewModel> SearchAsync(UserListViewModel filter)
@@ -34,6 +31,50 @@ public sealed class UserService(
             .ToListAsync();
 
         return filter;
+    }
+
+    // Every user matching the filters and sort, not just one page, for the CSV export.
+    public async Task<List<UserListItem>> ExportAsync(UserListViewModel filter)
+    {
+        var query = await FilterAsync(filter);
+        return await ToListItems(Sort(query, filter.Sort, filter.Desc)).ToListAsync();
+    }
+
+    public async Task<UserStats> GetStatsAsync(int topOrganisations = 5, DateTime? now = null)
+    {
+        var utcNow = now ?? DateTime.UtcNow;
+        var lockNow = new DateTimeOffset(utcNow, TimeSpan.Zero);
+        var dormantBefore = utcNow.AddDays(-UserStats.DormantDays);
+        var users = db.Users.AsNoTracking().Where(u => u.DeletedAt == null);
+
+        var byRole = await db.UserRoles
+            .Where(ur => users.Any(u => u.Id == ur.UserId))
+            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+            .GroupBy(name => name)
+            .Select(g => new { Role = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Role, x => x.Count);
+
+        var organisations = await db.CustomerOrganisations.AsNoTracking()
+            .Select(o => new { o.Id, o.Name, Count = o.Users.Count(u => u.DeletedAt == null) })
+            .Where(o => o.Count > 0)
+            .OrderByDescending(o => o.Count)
+            .ThenBy(o => o.Name)
+            .Take(topOrganisations)
+            .ToListAsync();
+
+        // SQLite cannot compare DateTimeOffset in SQL, so the lockout check runs in memory.
+        var lockoutEnds = await users.Where(u => u.LockoutEnd != null).Select(u => u.LockoutEnd).ToListAsync();
+
+        return new UserStats
+        {
+            Total = await users.CountAsync(),
+            Active = await users.CountAsync(u => u.IsActive),
+            Inactive = await users.CountAsync(u => !u.IsActive),
+            Locked = lockoutEnds.Count(end => end > lockNow),
+            Dormant = await users.CountAsync(u => u.IsActive && (u.LastLoginAt == null || u.LastLoginAt < dormantBefore)),
+            ByRole = Roles.All.ToDictionary(role => role, role => byRole.GetValueOrDefault(role)),
+            TopOrganisations = organisations.Select(o => new OrganisationCount(o.Id, o.Name, o.Count)).ToList(),
+        };
     }
 
     // Customer users in one organisation, for the Edit organisation page.
@@ -62,8 +103,6 @@ public sealed class UserService(
             IsActive = user.IsActive,
         };
     }
-
-    // ---- Create and edit ----
 
     public async Task<ServiceResult> CreateAsync(UserFormViewModel model)
     {
@@ -166,8 +205,6 @@ public sealed class UserService(
         });
     }
 
-    // ---- Deactivate and reactivate ----
-
     // Only flips IsActive: the account and its comments and reviews are kept (A3).
     // ApplicationSignInManager signs the user out on their next request.
     public async Task<ServiceResult> SetActiveAsync(string id, bool isActive, string currentUserId)
@@ -192,8 +229,6 @@ public sealed class UserService(
         return await SaveInTransactionAsync(async () => FromIdentity(await userManager.UpdateAsync(user)));
     }
 
-    // ---- Delete and restore ----
-
     // Moves the account to the Deleted list: hidden from the users list and unable to sign in, but kept
     // with its reviews and comments so it can be restored.
     public async Task<ServiceResult> DeleteAsync(string id, string currentUserId)
@@ -214,7 +249,6 @@ public sealed class UserService(
         return await SaveInTransactionAsync(async () => FromIdentity(await userManager.UpdateAsync(user)));
     }
 
-    // Brings a deleted account back as an active user.
     public async Task<ServiceResult> RestoreAsync(string id)
     {
         var user = await userManager.FindByIdAsync(id);
@@ -228,7 +262,6 @@ public sealed class UserService(
         return await SaveInTransactionAsync(async () => FromIdentity(await userManager.UpdateAsync(user)));
     }
 
-    // Clears a lockout caused by too many wrong passwords.
     public async Task<ServiceResult> UnlockAsync(string id)
     {
         var user = await userManager.FindByIdAsync(id);
@@ -248,8 +281,6 @@ public sealed class UserService(
             return FromIdentity(result);
         });
     }
-
-    // ---- Login tracking ----
 
     // Stamps the time of a successful login, shown as "Last login" on the users list.
     public async Task RecordLoginAsync(string email)
@@ -271,8 +302,6 @@ public sealed class UserService(
             logger.LogWarning(ex, "Could not record the login time for {UserId}", user.Id);
         }
     }
-
-    // ---- Helpers ----
 
     private async Task<List<ServiceError>> ValidateAsync(UserFormViewModel model, string? existingUserId)
     {
@@ -361,6 +390,23 @@ public sealed class UserService(
         if (filter.IsActive is bool isActive)
         {
             query = query.Where(u => u.IsActive == isActive);
+        }
+
+        if (filter.Dormant)
+        {
+            var dormantBefore = DateTime.UtcNow.AddDays(-UserStats.DormantDays);
+            query = query.Where(u => u.LastLoginAt == null || u.LastLoginAt < dormantBefore);
+        }
+
+        if (filter.Locked)
+        {
+            // SQLite cannot compare DateTimeOffset in SQL, so find the locked users in memory first.
+            var now = DateTimeOffset.UtcNow;
+            var lockouts = await query.Where(u => u.LockoutEnd != null)
+                .Select(u => new { u.Id, u.LockoutEnd })
+                .ToListAsync();
+            var lockedIds = lockouts.Where(u => u.LockoutEnd > now).Select(u => u.Id).ToList();
+            query = query.Where(u => lockedIds.Contains(u.Id));
         }
 
         if (filter.OrganisationId is int organisationId)

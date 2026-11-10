@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ANDtr.Web.Areas.Admin.Controllers;
 
-// Customer organisations: list, create, edit and delete (A2).
 [Area("Admin")]
 [Authorize(Roles = Roles.Admin)]
 public class OrganisationsController(OrganisationService organisationService, UserService userService) : Controller
@@ -16,8 +15,6 @@ public class OrganisationsController(OrganisationService organisationService, Us
         ViewData["Search"] = search;
         return View(await organisationService.ListAsync(search));
     }
-
-    // ---- Create ----
 
     public IActionResult Create()
     {
@@ -45,8 +42,6 @@ public class OrganisationsController(OrganisationService organisationService, Us
         return RedirectToAction(nameof(Index));
     }
 
-    // ---- Edit ----
-
     public async Task<IActionResult> Edit(int id)
     {
         var model = await organisationService.GetForEditAsync(id);
@@ -73,8 +68,6 @@ public class OrganisationsController(OrganisationService organisationService, Us
         TempData["Success"] = $"Organisation “{model.Name}” was updated.";
         return RedirectToAction(nameof(Index));
     }
-
-    // ---- Delete ----
 
     [HttpPost]
     [ValidateAntiForgeryToken]

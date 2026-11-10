@@ -96,16 +96,55 @@ public sealed class AdminPagesTests(WebAppFactory factory) : IClassFixture<WebAp
     }
 
     [Fact]
-    public async Task UsersPage_ShowsOnlyTheUsersList()
+    public async Task UsersPage_ShowsStatsChartsAndTheUsersList()
     {
         var admin = await factory.CreateSignedInClientAsync(Roles.Admin);
 
         var html = await admin.GetStringAsync("/Admin/Users");
 
         Assert.Contains("user-results", html);
-        Assert.DoesNotContain("Total users", html);
-        Assert.DoesNotContain("Users by role", html);
-        Assert.DoesNotContain("Customers per organisation", html);
+        Assert.Contains("Total users", html);
+        Assert.Contains("Locked out", html);
+        Assert.Contains("Users by role", html);
+        Assert.Contains("/Admin/Users?role=Customer", html);
+        Assert.Contains("Customers per organisation", html);
+    }
+
+    [Fact]
+    public async Task UsersExport_DownloadsCsvOfTheFilteredUsers()
+    {
+        var admin = await factory.CreateSignedInClientAsync(Roles.Admin);
+
+        var response = await admin.GetAsync("/Admin/Users/Export?role=Customer");
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("text/csv", response.Content.Headers.ContentType?.MediaType);
+        Assert.EndsWith(".csv", response.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
+        var lines = (await response.Content.ReadAsStringAsync()).TrimStart('﻿').Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal("Name,Email,Role,Organisation,Status,Last login (UTC)", lines[0]);
+        Assert.True(lines.Length > 1);
+        Assert.All(lines.Skip(1), line => Assert.Contains(",Customer,", line));
+    }
+
+    [Fact]
+    public async Task UsersExport_IsForAdminsOnly()
+    {
+        var employee = await factory.CreateSignedInClientAsync(Roles.Employee);
+
+        var response = await employee.GetAsync("/Admin/Users/Export");
+
+        Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OrganisationsPage_ShowsCustomersPerOrganisationChart()
+    {
+        var admin = await factory.CreateSignedInClientAsync(Roles.Admin);
+
+        var html = await admin.GetStringAsync("/Admin/Organisations");
+
+        Assert.Contains("Customers per organisation", html);
+        Assert.Contains("/Admin/Users?organisationId=", html);
     }
 
     // ---- Organisations (A2-01, A2-02, A2-04) ----
@@ -147,8 +186,6 @@ public sealed class AdminPagesTests(WebAppFactory factory) : IClassFixture<WebAp
         Assert.Contains("cannot be deleted because it still has 1 user", await admin.GetStringAsync("/Admin/Organisations"));
         Assert.Equal(organisationId, await OrganisationIdAsync("Arogya"));
     }
-
-    // ---- Helpers ----
 
     private Task<HttpResponseMessage> PostUserAsync(HttpClient admin, string email, string role, int? organisationId = null) =>
         factory.PostFormAsync(admin, "/Admin/Users/Create", new Dictionary<string, string>

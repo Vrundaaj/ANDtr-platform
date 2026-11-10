@@ -7,7 +7,6 @@ using SignInResult = Microsoft.AspNetCore.Identity.SignInResult;
 
 namespace ANDtr.Web.Controllers;
 
-// Login, logout and the Access denied page for every role (A1, A3).
 public class AccountController(
     SignInManager<ApplicationUser> signInManager,
     UserManager<ApplicationUser> userManager,

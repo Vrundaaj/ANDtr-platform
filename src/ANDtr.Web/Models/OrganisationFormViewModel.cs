@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace ANDtr.Web.Models;
 
-// Create / edit organisation form (A2).
 public class OrganisationFormViewModel
 {
     public int? Id { get; set; }

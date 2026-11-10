@@ -4,7 +4,6 @@
 }
 
 <div class="auth-layout">
-    @* ---- Left: brand panel (hidden on small screens) ---- *@
     <aside class="auth-aside">
         <div class="auth-brand">
             <span class="brand-mark">@Icons.Svg("shield", 18)</span>
@@ -24,7 +23,6 @@
         <p class="auth-note">© @DateTime.UtcNow.Year ANDtr · Access is limited to authorised users.</p>
     </aside>
 
-    @* ---- Right: the login form ---- *@
     <section class="auth-main">
         <div class="auth-card">
             <span class="brand-mark auth-card-mark">@Icons.Svg("shield", 22)</span>
@@ -74,7 +72,6 @@
 </div>
 
 <script>
-    // Show / hide the password.
     (() => {
         const input = document.getElementById('Password');
         const toggle = document.getElementById('password-toggle');
